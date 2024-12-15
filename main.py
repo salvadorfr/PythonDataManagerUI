@@ -23,18 +23,23 @@ def main(page: ft.Page):
     page.window.resizable   = False
     page.vertical_alignment = ft.MainAxisAlignment.START
 
-    # Assing componenets
-    general =       GeneralTable()
+    # Initialize components
+    general = GeneralTable()
     subscriptions = SubscriptionsTable()
-    reports =       ReportsLayout()
-    containersList = [ general, subscriptions, reports ]
-
+    reports = ReportsLayout()
+    
+    # Create container first
     right_container = ft.Container(
         expand=True,
         height=600,
         padding=ft.Padding(10,10,10,50),
-        content= containersList[0]
     )
+    
+    # Create list after container
+    containersList = [general, subscriptions, reports]
+    
+    # Set initial content
+    right_container.content = containersList[0]
 
     header = Header()
     navbar = NavBar(funcContChange=contentChange)
