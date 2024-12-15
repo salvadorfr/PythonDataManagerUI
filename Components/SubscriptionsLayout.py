@@ -3,6 +3,32 @@ import pandas as pd
 from datetime import datetime
 from Components.colors import *
 from functions import read_csv_file, validate_subscription_date, update_csv_subscription_date
+from typing import Callable, List, Optional
+
+# Pure functions for table operations
+calculate_total_pages = lambda df, rows_per_page: len(df) // rows_per_page + (1 if len(df) % rows_per_page > 0 else 0)
+get_page_slice = lambda df, page, rows_per_page: df.iloc[(page - 1) * rows_per_page:page * rows_per_page]
+format_date = lambda date: datetime.strptime(date, '%Y-%m-%d').strftime('%Y-%m-%d')
+
+# Higher order function for button creation
+def create_action_button(icon: str, tooltip: str, action: Callable) -> ft.IconButton:
+    return ft.IconButton(
+        icon=icon,
+        tooltip=tooltip,
+        on_click=action
+    )
+
+# Pure function for creating table rows
+def create_table_row(row: pd.Series, status: str, action_btn: ft.IconButton) -> ft.DataRow:
+    return ft.DataRow(
+        cells=[
+            ft.DataCell(ft.Text(row['First Name'])),
+            ft.DataCell(ft.Text(row['Last Name'])),
+            ft.DataCell(ft.Text(str(row['Subscription Date']))),
+            ft.DataCell(ft.Text(status)),
+            ft.DataCell(action_btn),
+        ]
+    )
 
 class SubscriptionsTable(ft.UserControl):
     def __init__(self):
@@ -119,106 +145,96 @@ class SubscriptionsTable(ft.UserControl):
     def update_table_data(self, df, status):
         try:
             if df is None or df.empty:
-                print("Debug: No data to update table")
                 return
                 
-            print(f"Debug: Updating table with {len(df)} rows")
             self.current_df = df
             self.table.rows.clear()
             
-            # Calculate pagination
-            total_pages = len(df) // self.rows_per_page + (1 if len(df) % self.rows_per_page > 0 else 0)
-            print(f"Debug: Total pages: {total_pages}")
+            total_pages = calculate_total_pages(df, self.rows_per_page)
+            page_data = get_page_slice(df, self.current_page, self.rows_per_page)
             
-            # Update navigation buttons state
+            # Update pagination controls
             self.pagination.controls[0].disabled = self.current_page <= 1
             self.pagination.controls[2].disabled = self.current_page >= total_pages
-            
-            # Update page info
             self.page_info.value = f"Page {self.current_page} of {total_pages}"
             
-            # Calculate page slices
-            start_idx = (self.current_page - 1) * self.rows_per_page
-            end_idx = start_idx + self.rows_per_page
-            page_data = df.iloc[start_idx:end_idx]
-            
-            for idx, row in page_data.iterrows():
-                update_btn = ft.IconButton(
-                    icon=ft.icons.UPDATE,
-                    tooltip="Update Subscription",
-                    on_click=lambda e, row_idx=idx: self.show_update_dialog_for_row(e, row_idx)
-                )
-                
-                self.table.rows.append(
-                    ft.DataRow(
-                        cells=[
-                            ft.DataCell(ft.Text(row['First Name'])),
-                            ft.DataCell(ft.Text(row['Last Name'])),
-                            ft.DataCell(ft.Text(str(row['Subscription Date']))),
-                            ft.DataCell(ft.Text(status)),
-                            ft.DataCell(update_btn),
-                        ]
+            # Create rows using pure functions
+            self.table.rows.extend([
+                create_table_row(
+                    row,
+                    status,
+                    create_action_button(
+                        ft.icons.UPDATE,
+                        "Update Subscription",
+                        lambda e, idx=i: self.show_update_dialog_for_row(e, idx)
                     )
                 )
+                for i, (_, row) in enumerate(page_data.iterrows())
+            ])
+            
             self.update()
         except Exception as e:
             print(f"Error updating table: {str(e)}")
 
     def show_update_dialog_for_row(self, e, row_idx):
-        def close_dlg(e):
-            self.update_dialog.open = False
-            self.page.update()  # Update page reference
-
-        def update_subscription(e):
-            try:
-                date_value = self.page.get_value(self.date_picker)  # Get selected date
-                if date_value:
-                    current_row = self.current_df.iloc[row_idx]
-                    formatted_date = datetime.strptime(date_value, '%Y-%m-%d').strftime('%Y-%m-%d')
-                    
-                    success = update_csv_subscription_date(
-                        current_row['First Name'],
-                        current_row['Last Name'],
-                        formatted_date
-                    )
-                    
-                    if success:
-                        mask = (self.current_df['First Name'] == current_row['First Name']) & \
-                              (self.current_df['Last Name'] == current_row['Last Name'])
-                        self.current_df.loc[mask, 'Subscription Date'] = formatted_date
-                        print("Update successful")
-                        self.update_table_data(self.current_df, self.current_status)
-                        close_dlg(e)
-                    else:
-                        print("Failed to update subscription")
-            except Exception as e:
-                print(f"Error updating subscription: {str(e)}")
-
+        update_subscription = lambda e: self.handle_subscription_update(e, row_idx)
+        close_dialog = lambda e: self.close_update_dialog(e)
+        
         self.date_picker = ft.DatePicker(
             first_date=datetime(2024, 1, 1),
             last_date=datetime(2024, 12, 31),
-            on_change=lambda e: print(f"Selected date: {e.control.value}")  # Debug selected date
+            on_change=lambda e: print(f"Selected date: {e.control.value}")
         )
-        self.page.overlay.append(self.date_picker)  # Add picker to page overlay
         
         self.update_dialog = ft.AlertDialog(
             title=ft.Text("Update Subscription Date"),
-            content=ft.Column([
-                ft.Text("Select new subscription date:"),
-                ft.ElevatedButton(
-                    "Pick Date",
-                    icon=ft.icons.CALENDAR_TODAY,
-                    on_click=lambda _: self.date_picker.pick_date()
-                )
-            ]),
+            content=self.create_dialog_content(),
             actions=[
                 ft.TextButton("Update", on_click=update_subscription),
-                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton("Cancel", on_click=close_dialog),
             ],
         )
         
+        self.page.overlay.append(self.date_picker)
         self.update_dialog.open = True
         self.page.update()
+
+    def handle_subscription_update(self, e, row_idx):
+        try:
+            date_value = self.page.get_value(self.date_picker)
+            if date_value:
+                current_row = self.current_df.iloc[row_idx]
+                formatted_date = format_date(date_value)
+                
+                if update_csv_subscription_date(
+                    current_row['First Name'],
+                    current_row['Last Name'],
+                    formatted_date
+                ):
+                    self.update_local_data(current_row, formatted_date)
+                    self.close_update_dialog(e)
+        except Exception as e:
+            print(f"Error updating subscription: {str(e)}")
+
+    def update_local_data(self, row, new_date):
+        mask = (self.current_df['First Name'] == row['First Name']) & \
+               (self.current_df['Last Name'] == row['Last Name'])
+        self.current_df.loc[mask, 'Subscription Date'] = new_date
+        self.update_table_data(self.current_df, self.current_status)
+
+    def close_update_dialog(self, e):
+        self.update_dialog.open = False
+        self.page.update()
+
+    def create_dialog_content(self):
+        return ft.Column([
+            ft.Text("Select new subscription date:"),
+            ft.ElevatedButton(
+                "Pick Date",
+                icon=ft.icons.CALENDAR_TODAY,
+                on_click=lambda _: self.date_picker.pick_date()
+            )
+        ])
 
     def build(self):
         return ft.Container(

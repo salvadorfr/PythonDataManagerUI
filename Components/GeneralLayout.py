@@ -1,6 +1,34 @@
 import flet as ft
 from Components.colors import *
 from functions import read_csv_file, filter_csv_city, filter_csv_country
+from typing import Callable, List, Optional
+import pandas as pd
+
+# Pure functions for table operations
+calculate_total_pages = lambda df, rows_per_page: len(df) // rows_per_page + (1 if len(df) % rows_per_page > 0 else 0)
+get_page_slice = lambda df, page, rows_per_page: df.iloc[(page - 1) * rows_per_page:page * rows_per_page]
+create_data_cell = lambda value: ft.DataCell(ft.Text(str(value)))
+
+# Higher order function for creating table rows
+def create_table_row(row_data: pd.Series) -> ft.DataRow:
+    return ft.DataRow(
+        cells=[
+            create_data_cell(row_data[col]) for col in 
+            ['First Name', 'Last Name', 'Company', 'City', 'Country', 'Email', 'Website']
+        ]
+    )
+
+# Pure function for pagination state
+def get_pagination_state(current_page: int, total_pages: int) -> dict:
+    return {
+        'prev_disabled': current_page <= 1,
+        'next_disabled': current_page >= total_pages,
+        'page_info': f"Page {current_page} of {total_pages}"
+    }
+
+# Pure function for filtering
+def filter_data(df: pd.DataFrame, filter_fn: Callable, value: str) -> pd.DataFrame:
+    return filter_fn(value) if value else df
 
 class GeneralTable(ft.UserControl):
     def __init__(self):
@@ -85,41 +113,22 @@ class GeneralTable(ft.UserControl):
         self.current_df = df
         self.table.rows.clear()
         
-        # Calculate pagination
-        total_pages = len(df) // self.rows_per_page + (1 if len(df) % self.rows_per_page > 0 else 0)
+        total_pages = calculate_total_pages(df, self.rows_per_page)
+        page_data = get_page_slice(df, self.current_page, self.rows_per_page)
+        pagination_state = get_pagination_state(self.current_page, total_pages)
         
-        # Update navigation buttons state
-        self.pagination.controls[0].disabled = self.current_page <= 1
-        self.pagination.controls[2].disabled = self.current_page >= total_pages
+        # Update pagination controls
+        self.pagination.controls[0].disabled = pagination_state['prev_disabled']
+        self.pagination.controls[2].disabled = pagination_state['next_disabled']
+        self.page_info.value = pagination_state['page_info']
         
-        # Update page info
-        self.page_info.value = f"Page {self.current_page} of {total_pages}"
-        
-        # Calculate page slices
-        start_idx = (self.current_page - 1) * self.rows_per_page
-        end_idx = start_idx + self.rows_per_page
-        page_data = df.iloc[start_idx:end_idx]
-        
-        # Update table rows
-        for _, row in page_data.iterrows():
-            self.table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(row['First Name'])),
-                        ft.DataCell(ft.Text(row['Last Name'])),
-                        ft.DataCell(ft.Text(row['Company'])),
-                        ft.DataCell(ft.Text(row['City'])),
-                        ft.DataCell(ft.Text(row['Country'])),
-                        ft.DataCell(ft.Text(row['Email'])),
-                        ft.DataCell(ft.Text(row['Website']))
-                    ]
-                )
-            )
+        # Update table rows using pure function
+        self.table.rows.extend([create_table_row(row) for _, row in page_data.iterrows()])
         self.update()
 
     def filter_by_city(self, e):
         if self.search_input.value:
-            filtered_df = filter_csv_city(self.search_input.value)
+            filtered_df = filter_data(self.current_df, filter_csv_city, self.search_input.value)
             print(f"Debug - Filtered rows: {len(filtered_df)}")  # Debug print
             self.current_page = 1  # Reset to first page
             if not filtered_df.empty:
@@ -131,7 +140,7 @@ class GeneralTable(ft.UserControl):
 
     def filter_by_country(self, e):
         if self.search_input.value:
-            filtered_df = filter_csv_country(self.search_input.value)
+            filtered_df = filter_data(self.current_df, filter_csv_country, self.search_input.value)
             print(f"Debug - Filtered rows: {len(filtered_df)}")  # Debug print
             self.current_page = 1  # Reset to first page
             if not filtered_df.empty:
