@@ -58,16 +58,16 @@ class ReportsLayout(ft.UserControl):
         self.country_input = ft.TextField(
             label="Enter Country Name",
             width=200,
-            bgcolor=ft.colors.WHITE,
+            bgcolor = table_bgcolor,
             border_color=primary_color,
             text_style=ft.TextStyle(color=ft.colors.BLACK)
         )
         
         self.chart_image = ft.Image(
-            width=400,
-            height=400,
+            width=600,
+            height=600,
             fit=ft.ImageFit.CONTAIN,
-            visible=False
+            visible=False,
         )
         
         self.subscription_btn = ft.ElevatedButton(
@@ -75,7 +75,7 @@ class ReportsLayout(ft.UserControl):
             on_click=self.generate_subscription_chart,
             style=ft.ButtonStyle(
                 bgcolor=primary_color,
-                color=ft.colors.WHITE,
+                color=ft.Colors.WHITE,
             )
         )
 
@@ -84,23 +84,46 @@ class ReportsLayout(ft.UserControl):
             on_click=self.generate_cities_chart,
             style=ft.ButtonStyle(
                 bgcolor=primary_color,
-                color=ft.colors.WHITE,
+                color=ft.Colors.WHITE,
             )
         )
 
+        self.menuContainer = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content= ft.Column([ft.Text("Subscription report", style=ft.TextStyle(color=table_txt_color, weight=ft.FontWeight.BOLD)),self.subscription_btn]),
+                        bgcolor= container_color,
+                        padding=10,
+                        border_radius=10
+                    ),
+                    ft.Container(
+                        content= ft.Column([ft.Text("Cities report", style=ft.TextStyle(color=table_txt_color, weight=ft.FontWeight.BOLD)),self.country_input, self.cities_btn]),
+                        bgcolor = container_color,
+                        padding=10,
+                        border_radius=10
+                    )
+                ]
+            )
+        )
+
+        self.graphicContainer = ft.Container(
+            content = self.chart_image,
+            bgcolor= container_color,
+            padding= 10,
+            width= 600,
+            height= 600,
+            border_radius = 10
+        )
+
         self.container = ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    self.subscription_btn,
-                    ft.VerticalDivider(width=20),
-                    self.cities_btn,
-                ], alignment=ft.MainAxisAlignment.START),
-                ft.Divider(height=20),
-                ft.Row([self.country_input], 
-                      alignment=ft.MainAxisAlignment.START),
-                self.chart_image
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=20
+            content= ft.Row(
+                [
+                    self.menuContainer,
+                    self.graphicContainer
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER
+            ),
         )
 
     async def generate_subscription_chart(self, _):
