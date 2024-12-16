@@ -28,7 +28,7 @@ def create_container(content=None):
     return ft.Container(
         expand=True,
         height=600,
-        padding=ft.Padding(10,10,10,50),
+        padding=ft.Padding(10,10,10,0),
         content=content
     )
 
@@ -62,7 +62,7 @@ def main(page: ft.Page):
     # Initialize components with functional approach
     components = {
         'general': GeneralTable(),
-        'subscriptions': SubscriptionsTable(),
+        'subscriptions': SubscriptionsTable(page),
         'reports': ReportsLayout()
     }
     

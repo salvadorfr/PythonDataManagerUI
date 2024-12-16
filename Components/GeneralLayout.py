@@ -49,15 +49,24 @@ class GeneralTable(ft.UserControl):
         self.search_input = ft.TextField(
             label="Search by City or Country",
             width=300,
-            bgcolor=ft.colors.BLACK,
+            height=40,
+            color= table_txt_color,
+            focused_border_color=secondary_color,
+            fill_color=table_bgcolor,
+            border_color= ft.Colors.TRANSPARENT,
             border_radius=5
         )
         
+        createSearchButtons = lambda label, func : ft.ElevatedButton(label,
+                              on_click=func,
+                              bgcolor=primary_color,
+                              color=table_bgcolor
+                              )
         self.search_controls = ft.Row([
             self.search_input,
-            ft.ElevatedButton("Search City", on_click=self.filter_by_city),
-            ft.ElevatedButton("Search Country", on_click=self.filter_by_country),
-            ft.ElevatedButton("Show All", on_click=self.show_all_data)
+            createSearchButtons("Search City", self.filter_by_city),
+            createSearchButtons("Search Country", self.filter_by_country),
+            createSearchButtons("Show All", self.show_all_data),
         ])
 
     def setup_table(self):
@@ -84,21 +93,23 @@ class GeneralTable(ft.UserControl):
         )
 
     def setup_pagination_controls(self):
-        self.page_info = ft.Text(f"Page {self.current_page}")
+        self.page_info = ft.Text(f"Page {self.current_page}", color=table_txt_color)
         self.pagination = ft.Row(
             controls=[
                 ft.IconButton(
-                    icon=ft.icons.ARROW_BACK,
+                    icon=ft.Icons.ARROW_BACK,
                     on_click=self.prev_page,
-                    disabled=True
+                    disabled=True,
+                    icon_color=primary_color
                 ),
                 self.page_info,
                 ft.IconButton(
-                    icon=ft.icons.ARROW_FORWARD,
-                    on_click=self.next_page
+                    icon=ft.Icons.ARROW_FORWARD,
+                    on_click=self.next_page,
+                    icon_color=primary_color
                 )
             ],
-            alignment=ft.MainAxisAlignment.CENTER
+            alignment=ft.MainAxisAlignment.CENTER,
         )
 
     def load_initial_data(self):
@@ -129,7 +140,6 @@ class GeneralTable(ft.UserControl):
     def filter_by_city(self, e):
         if self.search_input.value:
             filtered_df = filter_data(self.current_df, filter_csv_city, self.search_input.value)
-            print(f"Debug - Filtered rows: {len(filtered_df)}")  # Debug print
             self.current_page = 1  # Reset to first page
             if not filtered_df.empty:
                 self.update_table_data(filtered_df)
@@ -141,7 +151,6 @@ class GeneralTable(ft.UserControl):
     def filter_by_country(self, e):
         if self.search_input.value:
             filtered_df = filter_data(self.current_df, filter_csv_country, self.search_input.value)
-            print(f"Debug - Filtered rows: {len(filtered_df)}")  # Debug print
             self.current_page = 1  # Reset to first page
             if not filtered_df.empty:
                 self.update_table_data(filtered_df)
@@ -187,7 +196,7 @@ class GeneralTable(ft.UserControl):
                             ft.Row(
                                 [self.table],
                                 scroll="always",
-                                width=1400
+                                width = 1400
                             )
                         ],
                         scroll="always",

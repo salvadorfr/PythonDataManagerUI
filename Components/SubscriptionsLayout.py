@@ -2,7 +2,7 @@ import flet as ft
 import pandas as pd
 from datetime import datetime
 from Components.colors import *
-from functions import read_csv_file, validate_subscription_date, update_csv_subscription_date
+from functions import read_csv_file, validate_subscription_date, update_csv_file
 from typing import Callable, List, Optional
 
 # Pure functions for table operations
@@ -15,7 +15,8 @@ def create_action_button(icon: str, tooltip: str, action: Callable) -> ft.IconBu
     return ft.IconButton(
         icon=icon,
         tooltip=tooltip,
-        on_click=action
+        on_click=action,
+        icon_color=secondary_color
     )
 
 # Pure function for creating table rows
@@ -24,15 +25,16 @@ def create_table_row(row: pd.Series, status: str, action_btn: ft.IconButton) -> 
         cells=[
             ft.DataCell(ft.Text(row['First Name'])),
             ft.DataCell(ft.Text(row['Last Name'])),
-            ft.DataCell(ft.Text(str(row['Subscription Date']))),
+            ft.DataCell(ft.Text(str(row['Subscription Date'])[:10])),
             ft.DataCell(ft.Text(status)),
             ft.DataCell(action_btn),
         ]
     )
 
 class SubscriptionsTable(ft.UserControl):
-    def __init__(self):
+    def __init__(self, mainPage : ft.Page):
         super().__init__()
+        self.mPage = mainPage
         self.current_page = 1
         self.rows_per_page = 20
         self.current_df = None
@@ -45,12 +47,14 @@ class SubscriptionsTable(ft.UserControl):
         self.valid_button = ft.ElevatedButton(
             "Show Valid Subscriptions",
             on_click=self.show_valid_subscriptions,
-            bgcolor=ft.colors.GREEN
+            bgcolor=ft.Colors.GREEN,
+            color = table_bgcolor
         )
         self.invalid_button = ft.ElevatedButton(
             "Show Invalid Subscriptions",
             on_click=self.show_invalid_subscriptions,
-            bgcolor=ft.colors.RED
+            bgcolor=ft.Colors.RED,
+            color = table_bgcolor
         )
         self.controls_row = ft.Row([
             self.valid_button, 
@@ -79,18 +83,20 @@ class SubscriptionsTable(ft.UserControl):
         )
 
     def setup_pagination_controls(self):
-        self.page_info = ft.Text(f"Page {self.current_page}")
+        self.page_info = ft.Text(f"Page {self.current_page}", color=table_txt_color)
         self.pagination = ft.Row(
             controls=[
                 ft.IconButton(
-                    icon=ft.icons.ARROW_BACK,
+                    icon=ft.Icons.ARROW_BACK,
                     on_click=self.prev_page,
-                    disabled=True
+                    disabled=True,
+                    icon_color=primary_color
                 ),
                 self.page_info,
                 ft.IconButton(
-                    icon=ft.icons.ARROW_FORWARD,
-                    on_click=self.next_page
+                    icon=ft.Icons.ARROW_FORWARD,
+                    on_click=self.next_page,
+                    icon_color=primary_color
                 )
             ],
             alignment=ft.MainAxisAlignment.CENTER
@@ -115,10 +121,8 @@ class SubscriptionsTable(ft.UserControl):
             self.current_status = "Valid"
             
             if not result['valid'].empty:
-                print(f"Debug: Found {len(result['valid'])} valid subscriptions")
                 self.update_table_data(result['valid'], self.current_status)
             else:
-                print("Debug: No valid subscriptions found")
                 self.table.rows.clear()
                 self.update()
         except Exception as e:
@@ -127,8 +131,6 @@ class SubscriptionsTable(ft.UserControl):
     def show_invalid_subscriptions(self, e):
         try:
             df = read_csv_file()
-            # Debug print to check column names
-            print("Available columns:", df.columns.tolist())
             
             current_year = 2024
             # Use correct column name 'Subscription Date' with space
@@ -164,9 +166,9 @@ class SubscriptionsTable(ft.UserControl):
                     row,
                     status,
                     create_action_button(
-                        ft.icons.UPDATE,
+                        ft.Icons.UPDATE,
                         "Update Subscription",
-                        lambda e, idx=i: self.show_update_dialog_for_row(e, idx)
+                        lambda e, idx=i: self.show_update_dialog_for_row(e, page_data, idx)
                     )
                 )
                 for i, (_, row) in enumerate(page_data.iterrows())
@@ -176,65 +178,34 @@ class SubscriptionsTable(ft.UserControl):
         except Exception as e:
             print(f"Error updating table: {str(e)}")
 
-    def show_update_dialog_for_row(self, e, row_idx):
-        update_subscription = lambda e: self.handle_subscription_update(e, row_idx)
-        close_dialog = lambda e: self.close_update_dialog(e)
-        
-        self.date_picker = ft.DatePicker(
-            first_date=datetime(2024, 1, 1),
-            last_date=datetime(2024, 12, 31),
-            on_change=lambda e: print(f"Selected date: {e.control.value}")
-        )
-        
-        self.update_dialog = ft.AlertDialog(
-            title=ft.Text("Update Subscription Date"),
-            content=self.create_dialog_content(),
-            actions=[
-                ft.TextButton("Update", on_click=update_subscription),
-                ft.TextButton("Cancel", on_click=close_dialog),
+    def show_update_dialog_for_row(self, e, df, row_idx):
+        alertDialog = ft.AlertDialog(
+            actions = [
+                ft.TextButton(
+                    "Update", style=ft.ButtonStyle(color=ft.Colors.GREEN), on_click= lambda e:self.updateDateMembership(alertDialog, df, row_idx)
+                ),
+                ft.TextButton(
+                    "Cancel", style=ft.ButtonStyle(color=ft.Colors.RED), on_click= lambda e:self.mPage.close(alertDialog)
+                )
             ],
+            modal = True,
+            title = ft.Text("Update membership"),
+            content= ft.Text("Are you sure you want to update the membership?"),
+            bgcolor=table_bgcolor,
+            title_text_style=ft.TextStyle(color=table_txt_color, weight=ft.FontWeight.BOLD, size=20),
+            content_text_style=ft.TextStyle(color=table_txt_color)
         )
-        
-        self.page.overlay.append(self.date_picker)
-        self.update_dialog.open = True
-        self.page.update()
 
-    def handle_subscription_update(self, e, row_idx):
-        try:
-            date_value = self.page.get_value(self.date_picker)
-            if date_value:
-                current_row = self.current_df.iloc[row_idx]
-                formatted_date = format_date(date_value)
-                
-                if update_csv_subscription_date(
-                    current_row['First Name'],
-                    current_row['Last Name'],
-                    formatted_date
-                ):
-                    self.update_local_data(current_row, formatted_date)
-                    self.close_update_dialog(e)
-        except Exception as e:
-            print(f"Error updating subscription: {str(e)}")
+        self.mPage.open(alertDialog)
 
-    def update_local_data(self, row, new_date):
-        mask = (self.current_df['First Name'] == row['First Name']) & \
-               (self.current_df['Last Name'] == row['Last Name'])
-        self.current_df.loc[mask, 'Subscription Date'] = new_date
-        self.update_table_data(self.current_df, self.current_status)
-
-    def close_update_dialog(self, e):
-        self.update_dialog.open = False
-        self.page.update()
-
-    def create_dialog_content(self):
-        return ft.Column([
-            ft.Text("Select new subscription date:"),
-            ft.ElevatedButton(
-                "Pick Date",
-                icon=ft.icons.CALENDAR_TODAY,
-                on_click=lambda _: self.date_picker.pick_date()
-            )
-        ])
+    def updateDateMembership(self, dialog, df, idx):
+        selected_ID = df.iloc[idx]["Customer Id"]
+        fullDf = read_csv_file()
+        fullDf.loc[fullDf['Customer Id'] == selected_ID, 'Subscription Date'] = datetime.now().strftime('%Y-%m-%d')
+        update_csv_file(fullDf)
+        self.mPage.close(dialog)
+        self.show_valid_subscriptions
+        self.mPage.update()
 
     def build(self):
         return ft.Container(

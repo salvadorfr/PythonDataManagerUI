@@ -15,7 +15,15 @@ def read_csv_file() -> pd.DataFrame:
         raise FileNotFoundError("CSV file not found")
     except Exception as e:
         raise Exception(f"Error reading CSV: {str(e)}")
-
+    
+def update_csv_file(df : pd.DataFrame):
+    try:
+        df.to_csv('customers-10000.csv', index = False)
+    except FileNotFoundError:
+        raise FileNotFoundError("CSV file not found")
+    except Exception as e:
+        raise Exception(f"Error updating CSV: {str(e)}")
+    
 # Higher order function for filtering
 def create_filter(column: str) -> Callable[[pd.DataFrame, str], pd.DataFrame]:
     def filter_data(df: pd.DataFrame, value: str) -> pd.DataFrame:
@@ -43,7 +51,6 @@ def filter_csv_city(city: str) -> pd.DataFrame:
         total_rows = get_total_rows(filtered_rows)
         
         if not is_empty(filtered_rows):
-            print(f"Records found for city {city}: {total_rows}")
             return filtered_rows
         return pd.DataFrame()
             
@@ -61,7 +68,6 @@ def filter_csv_country(country: str) -> pd.DataFrame:
         total_rows = get_total_rows(filtered_rows)
         
         if not is_empty(filtered_rows):
-            print(f"\nRecords found for country {country}: {total_rows}")
             return filtered_rows
         return pd.DataFrame()
             
@@ -86,9 +92,6 @@ def validate_subscription_date() -> Dict[str, pd.DataFrame]:
             raise KeyError("Subscription Date column not found")
         
         result = filter_by_year(df, current_year, 'Subscription Date')
-        
-        print(f"\nExpired subscriptions found: {get_total_rows(result['expired'])}")
-        print(f"Valid subscriptions found: {get_total_rows(result['valid'])}")
         
         return result
         
